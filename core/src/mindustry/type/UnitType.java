@@ -90,6 +90,8 @@ public class UnitType extends UnlockableContent implements Senseable{
     buildRange = Vars.buildingRange,
     /** multiplier for damage this (flying) unit deals when crashing on enemy things */
     crashDamageMultiplier = 1f,
+    /** multiplier for the effects item properties cause on death */
+    itemPropertyMultiplier = 1f,
     /** a VERY ROUGH estimate of unit DPS; initialized in init() */
     dpsEstimate = -1,
     /** graphics clipping size; <0 to calculate automatically */
