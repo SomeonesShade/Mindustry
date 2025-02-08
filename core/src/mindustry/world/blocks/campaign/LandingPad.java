@@ -1,6 +1,8 @@
 package mindustry.world.blocks.campaign;
 
 import arc.*;
+import arc.Graphics.*;
+import arc.Graphics.Cursor.*;
 import arc.graphics.*;
 import arc.graphics.g2d.*;
 import arc.math.*;
@@ -11,6 +13,7 @@ import arc.util.io.*;
 import mindustry.annotations.Annotations.*;
 import mindustry.content.*;
 import mindustry.entities.*;
+import mindustry.game.*;
 import mindustry.game.EventType.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
@@ -62,8 +65,16 @@ public class LandingPad extends Block{
         emitLight = true;
         lightRadius = 90f;
 
-        config(Item.class, (LandingPadBuild build, Item item) -> build.config = item);
-        configClear((LandingPadBuild build) -> build.config = null);
+        config(Item.class, (LandingPadBuild build, Item item) -> {
+            if(!build.accessible()) return;
+
+            build.config = item;
+        });
+        configClear((LandingPadBuild build) -> {
+            if(!build.accessible()) return;
+
+            build.config = null;
+        });
     }
 
     @Override
@@ -120,14 +131,21 @@ public class LandingPad extends Block{
         public float liquidRemoved;
 
         public void handleLanding(){
-            if(!state.isCampaign() || config == null) return;
+            if(config == null) return;
 
             cooldown = 1f;
             arriving = config;
             arrivingTimer = 0f;
             liquidRemoved = 0f;
 
-            state.rules.sector.info.importCooldownTimers.put(config, 0f);
+            if(state.isCampaign() && !isFake()){
+                state.rules.sector.info.importCooldownTimers.put(config, 0f);
+            }
+        }
+
+        public boolean accessible(){
+            //In custom games, this block can be configured by anyone except the player team; this allows for enemy builder AI to use it
+            return state.rules.editor || state.rules.allowEditWorldProcessors || state.isCampaign() || state.rules.infiniteResources || (team != state.rules.defaultTeam && !state.rules.pvp && team != Team.derelict);
         }
 
         public void updateTimers(){
@@ -276,7 +294,9 @@ public class LandingPad extends Block{
                     Effect.shake(3f, 3f, this);
 
                     items.set(arriving, itemCapacity);
-                    state.getSector().info.handleItemImport(arriving, itemCapacity);
+                    if(!isFake()){
+                        state.getSector().info.handleItemImport(arriving, itemCapacity);
+                    }
 
                     arriving = null;
                     arrivingTimer = 0f;
@@ -292,29 +312,70 @@ public class LandingPad extends Block{
                 cooldown = Mathf.clamp(cooldown);
             }
 
-            if(config != null && state.isCampaign()){
+            if(config != null && (isFake() || (state.isCampaign() && !state.getPlanet().campaignRules.legacyLaunchPads))){
 
-                if(cooldown <= 0f && efficiency > 0f && items.total() == 0 && state.rules.sector.info.getImportRate(state.getPlanet(), config) > 0f && state.rules.sector.info.importCooldownTimers.get(config, 0f) >= 1f){
+                if(cooldown <= 0f && efficiency > 0f && items.total() == 0 && (isFake() || (state.rules.sector.info.getImportRate(state.getPlanet(), config) > 0f && state.rules.sector.info.importCooldownTimers.get(config, 0f) >= 1f))){
 
-                    //queue landing for next frame
-                    waiting.get(config, Seq::new).add(this);
+                    if(isFake()){
+                        //there is no queue for enemy team blocks, it's all fake
+                        Call.landingPadLanded(tile);
+                    }else{
+                        //queue landing for next frame
+                        waiting.get(config, Seq::new).add(this);
+                    }
                 }
             }
+        }
+
+        /** @return whether this pad should receive items forever, essentially acting as an item source for maps. */
+        public boolean isFake(){
+            return team != state.rules.defaultTeam || !state.isCampaign();
         }
 
         @Override
         public boolean canDump(Building to, Item item){
             //hack: canDump is only ever called right before item offload, so count the item as "produced" before that.
-            //TODO: is this necessary?
             produced(item);
             return true;
         }
 
         @Override
+        public void drawSelect(){
+            if(config != null){
+                float dx = x - size * tilesize/2f, dy = y + size * tilesize/2f, s = iconSmall / 4f;
+                Draw.mixcol(Color.darkGray, 1f);
+                Draw.rect(config.fullIcon, dx, dy - 1, s, s);
+                Draw.reset();
+                Draw.rect(config.fullIcon, dx, dy, s, s);
+            }
+        }
+
+        @Override
+        public Cursor getCursor(){
+            return !accessible() ? SystemCursor.arrow : super.getCursor();
+        }
+
+        @Override
+        public boolean shouldShowConfigure(Player player){
+            return accessible();
+        }
+
+        @Override
+        public boolean onConfigureBuildTapped(Building other){
+            if(this == other || !accessible()){
+                deselect();
+                return false;
+            }
+
+            return super.onConfigureBuildTapped(other);
+        }
+
+        @Override
         public void buildConfiguration(Table table){
+
             ItemSelection.buildTable(LandingPad.this, table, content.items(), () -> config, this::configure, selectionRows, selectionColumns);
 
-            if(!net.client()){
+            if(!net.client() && !isFake()){
                 table.row();
 
                 table.table(t -> {
@@ -340,13 +401,18 @@ public class LandingPad extends Block{
         public void display(Table table){
             super.display(table);
 
-            if(!state.isCampaign() || net.client() || team != player.team()) return;
+            if(!state.isCampaign() || net.client() || team != player.team() || isFake()) return;
 
             table.row();
             table.label(() -> {
-                if(config == null || !state.isCampaign()){
-                    return "";
+                if(!state.isCampaign() || isFake()) return "";
+
+                if(state.getPlanet().campaignRules.legacyLaunchPads){
+                    return Core.bundle.get("landingpad.legacy.disabled");
                 }
+
+                if(config == null) return "";
+
                 int sources = 0;
                 float perSecond = 0f;
                 for(var s : state.getPlanet().sectors){
