@@ -92,6 +92,8 @@ public class UnitType extends UnlockableContent implements Senseable{
     buildRange = Vars.buildingRange,
     /** multiplier for damage this (flying) unit deals when crashing on enemy things */
     crashDamageMultiplier = 1f,
+    /** multiplier for the amount of health wrecks have. default wreck health is equal to the unit health. */
+    wreckHealthMultiplier = 1f,
     /** multiplier for the effects item properties cause on death */
     itemPropertyMultiplier = 1f,
     /** a VERY ROUGH estimate of unit DPS; initialized in init() */
