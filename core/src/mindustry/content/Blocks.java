@@ -2832,7 +2832,7 @@ public class Blocks{
             itemConsumer = consumeItem(Items.tungsten).boost();
             itemBoostIntensity = 2f;
             itemCapacity = 20;
-            boostItemUseTime = 60 / 0.45f;
+            boostItemUseTime = 60f * 10f;
 
             //alternatively, boost using nitrogen:
             //consumeLiquid(Liquids.nitrogen, 3f / 60f).boost();
