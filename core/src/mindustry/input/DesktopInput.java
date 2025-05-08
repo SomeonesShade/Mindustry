@@ -57,6 +57,7 @@ public class DesktopInput extends InputHandler{
     public long lastCtrlGroupSelectMillis;
 
     private float buildPlanMouseOffsetX, buildPlanMouseOffsetY;
+    private boolean changedCursor;
 
     boolean showHint(){
         return ui.hudfrag.shown && Core.settings.getBool("hints") && selectPlans.isEmpty() && !player.dead() &&
@@ -299,7 +300,7 @@ public class DesktopInput extends InputHandler{
                     selectedUnits.set(selectedCommandUnits(Tmp.r1.x, Tmp.r1.y, Tmp.r1.width, Tmp.r1.height));
                 }else {
                     for(var unit : player.team().data().units){
-                        if(unit.allowCommand()){
+                        if(unit.isCommandable()){
                             selectedUnits.add(unit);
                         }
                     }
@@ -315,7 +316,7 @@ public class DesktopInput extends InputHandler{
                     selectedUnits.set(selectedCommandUnits(Tmp.r1.x, Tmp.r1.y, Tmp.r1.width, Tmp.r1.height, u -> u instanceof Payloadc));
                 }else {
                     for(var unit : player.team().data().units){
-                        if(unit.allowCommand() && unit instanceof  Payloadc){
+                        if(unit.isCommandable() && unit instanceof  Payloadc){
                             selectedUnits.add(unit);
                         }
                     }
@@ -326,7 +327,7 @@ public class DesktopInput extends InputHandler{
                 selectedUnits.clear();
                 commandBuildings.clear();
                 for(var build : player.team().data().buildings){
-                    if(build.block.commandable){
+                    if(build.isCommandable()){
                         commandBuildings.add(build);
                     }
                 }
@@ -544,10 +545,15 @@ public class DesktopInput extends InputHandler{
             }
         }
 
-        if(!Core.scene.hasMouse()){
+        if(!Core.scene.hasMouse() && !ui.minimapfrag.shown()){
             Core.graphics.cursor(cursorType);
+            changedCursor = cursorType != SystemCursor.arrow;
         }else{
             cursorType = SystemCursor.arrow;
+            if(changedCursor){
+                graphics.cursor(SystemCursor.arrow);
+                changedCursor = false;
+            }
         }
     }
 

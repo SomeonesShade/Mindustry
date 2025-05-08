@@ -155,6 +155,8 @@ public abstract class InputHandler implements InputProcessor, GestureListener{
 
         Events.on(ResetEvent.class, e -> {
             logicCutscene = false;
+            commandBuildings.clear();
+            selectedUnits.clear();
             itemDepositCooldown = 0f;
             Arrays.fill(controlGroups, null);
             lastUnit = null;
@@ -264,11 +266,6 @@ public abstract class InputHandler implements InputProcessor, GestureListener{
         for(int id : unitIds){
             Unit unit = Groups.unit.getByID(id);
             if(unit != null && unit.team == player.team()){
-
-                if(unit.controller() instanceof LogicAI){
-                    //reset to commandAI if applicable
-                    unit.resetController();
-                }
 
                 if(unit.controller() instanceof CommandAI ai){
                     //implicitly order it to move
@@ -418,7 +415,7 @@ public abstract class InputHandler implements InputProcessor, GestureListener{
         for(int pos : buildings){
             var build = world.build(pos);
 
-            if(build == null || build.team() != player.team() || !build.block.commandable) continue;
+            if(build == null || build.team() != player.team() || !build.isCommandable()) continue;
 
             build.onCommand(target);
             build.updateLastAccess(player);
@@ -844,7 +841,7 @@ public abstract class InputHandler implements InputProcessor, GestureListener{
 
         itemDepositCooldown -= Time.delta / 60f;
 
-        commandBuildings.removeAll(b -> !b.isValid());
+        commandBuildings.removeAll(b -> !b.isValid() || !b.isCommandable() || b.team != player.team());
 
         if(!commandMode){
             commandRect = false;
@@ -1030,7 +1027,7 @@ public abstract class InputHandler implements InputProcessor, GestureListener{
                 //deselect
                 selectedUnits.clear();
 
-                if(build != null && build.team == player.team() && build.block.commandable){
+                if(build != null && build.team == player.team() && build.isCommandable()){
                     if(commandBuildings.contains(build)){
                         commandBuildings.remove(build);
                     }else{
@@ -1747,7 +1744,7 @@ public abstract class InputHandler implements InputProcessor, GestureListener{
         boolean consumed = false, showedInventory = false;
 
         //select building for commanding
-        if(build.block.commandable && commandMode){
+        if(build.isCommandable() && commandMode){
             //TODO handled in tap.
             consumed = true;
         }else if(build.block.configurable && build.interactable(player.team())){ //check if tapped block is configurable
@@ -1943,7 +1940,7 @@ public abstract class InputHandler implements InputProcessor, GestureListener{
         tmpUnits.clear();
         float rad = 4f;
         tree.intersect(x - rad/2f, y - rad/2f, rad, rad, tmpUnits);
-        return tmpUnits.min(u -> u.allowCommand(), u -> u.dst(x, y) - u.hitSize/2f);
+        return tmpUnits.min(u -> u.isCommandable(), u -> u.dst(x, y) - u.hitSize/2f);
     }
 
     public @Nullable Unit selectedEnemyUnit(float x, float y){
@@ -1965,7 +1962,7 @@ public abstract class InputHandler implements InputProcessor, GestureListener{
         tmpUnits.clear();
         float rad = 4f;
         tree.intersect(Tmp.r1.set(x - rad/2f, y - rad/2f, rad*2f + w, rad*2f + h).normalize(), tmpUnits);
-        tmpUnits.removeAll(u -> !u.allowCommand() || !predicate.get(u));
+        tmpUnits.removeAll(u -> !u.isCommandable() || !predicate.get(u));
         return tmpUnits;
     }
 
