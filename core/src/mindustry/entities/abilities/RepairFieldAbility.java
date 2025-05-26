@@ -11,6 +11,8 @@ import static mindustry.Vars.*;
 
 public class RepairFieldAbility extends Ability{
     public float amount = 1, reload = 100, range = 60;
+    /** Multiplies healing to units of the same type by this amount. */
+    public float sameTypeHealMult = 1f;
     public Effect healEffect = Fx.heal;
     public Effect activeEffect = Fx.healWaveDynamic;
     public boolean parentizeEffects = false;
@@ -32,6 +34,8 @@ public class RepairFieldAbility extends Ability{
         t.add(Core.bundle.format("bullet.range", Strings.autoFixed(range / tilesize, 2)));
         t.row();
         t.add(abilityStat("repairspeed", Strings.autoFixed(amount * 60f / reload, 2)));
+        t.row();
+        t.add(abilityStat("sametypehealmultiplier", (sameTypeHealMult < 1f ? "[negstat]" : "") + Strings.autoFixed(sameTypeHealMult * 100f, 2)));
     }
 
     @Override
@@ -46,7 +50,8 @@ public class RepairFieldAbility extends Ability{
                     healEffect.at(other, parentizeEffects);
                     wasHealed = true;
                 }
-                other.heal(amount);
+                float healMult = (other.type == unit.type) ? sameTypeHealMult : 1f;
+                other.heal(amount * healMult);
             });
 
             if(wasHealed){
