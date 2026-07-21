@@ -360,6 +360,36 @@ public class BlockIndexer{
         return size > 0;
     }
 
+    public int getBlockTiles(@Nullable Team team, float wx, float wy, float range, Boolf<Building> pred){
+        int sum = 0;
+        breturnArray.clear();
+        if(team == null){
+            allBuildings(wx, wy, range, b -> {
+                if(pred.get(b)){
+                    breturnArray.add(b);
+                }
+            });
+        }else{
+            var buildings = team.data().buildingTree;
+            if(buildings == null) return 0;
+            buildings.intersect(wx - range, wy - range, range*2f, range*2f, b -> {
+                if(b.within(wx, wy, range + b.hitSize() / 2f) && pred.get(b)){
+                    breturnArray.add(b);
+                }
+            });
+        }
+
+        int size = breturnArray.size;
+        var items = breturnArray.items;
+        for(int i = 0; i < size; i++){
+            sum += Mathf.pow(items[i].block.size, 2);
+            items[i] = null;
+        }
+        breturnArray.size = 0;
+
+        return sum;
+    }
+
     /** Does not work with null teams. */
     public boolean eachBlock(Team team, Rect rect, Boolf<Building> pred, Cons<Building> cons){
         if(team == null) return false;

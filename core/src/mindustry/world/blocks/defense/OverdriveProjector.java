@@ -11,6 +11,7 @@ import mindustry.annotations.Annotations.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
 import mindustry.logic.*;
+import mindustry.type.*;
 import mindustry.ui.*;
 import mindustry.world.*;
 import mindustry.world.consumers.*;
@@ -29,6 +30,12 @@ public class OverdriveProjector extends Block{
     public boolean hasBoost = true;
     public Color baseColor = Color.valueOf("feb380");
     public Color phaseColor = Color.valueOf("ffd59e");
+    /** Added to base power consumption. */
+    public float powerPerTile = 0f;
+    /** Added to non-power consumption. */
+    public float useRatePerTile = 0f;
+    //initialized in init(), do not touch
+    protected float basePowerUse = 0f;
 
     public OverdriveProjector(String name){
         super(name);
@@ -43,6 +50,16 @@ public class OverdriveProjector extends Block{
         envEnabled |= Env.space;
         ambientSound = Sounds.loopCircuit;
         ambientSoundVolume = 0.13f;
+    }
+
+    @Override
+    public void init(){
+        if(powerPerTile > 0){
+            basePowerUse = consPower != null ? consPower.usage : 0f;
+            consumePowerDynamic(basePowerUse, (OverdriveBuild entity) -> basePowerUse + powerPerTile * entity.intensity);
+        }
+
+        super.init();
     }
 
     @Override
@@ -78,10 +95,34 @@ public class OverdriveProjector extends Block{
     public void setBars(){
         super.setBars();
         addBar("boost", (OverdriveBuild entity) -> new Bar(() -> Core.bundle.format("bar.boost", Mathf.round(Math.max((entity.realBoost() * 100 - 100), 0))), () -> Pal.accent, () -> entity.realBoost() / (hasBoost ? speedBoost + speedBoostPhase : speedBoost)));
+
+        if(useRatePerTile > 0 || powerPerTile > 0){
+            addBar("intensity", (OverdriveBuild entity) -> new Bar(() ->
+                Core.bundle.format("bar.heatamount", entity.intensity),
+                () -> Pal.lightOrange,
+                () -> entity.intensity / Mathf.round(Mathf.pi * Mathf.sqr(entity.realRange / tilesize))
+            ));
+
+            if(powerPerTile > 0){
+                addBar("power", (OverdriveBuild entity) -> new Bar(() ->
+                    Core.bundle.format("bar.powerinput", Strings.autoFixed(consPower.requestedPower(entity) * 60, 0)),
+                    () -> Pal.powerBar,
+                    () -> entity.efficiency
+                ));
+            }
+
+            if(useRatePerTile > 0){
+                addBar("userate", (OverdriveBuild entity) -> new Bar(() ->
+                    Core.bundle.format("bar.userate", Strings.autoFixed(entity.realUseRate() * 60f, 2)),
+                    () -> Pal.ammo,
+                    () -> entity.efficiency
+                ));
+            }
+        }
     }
 
     public class OverdriveBuild extends Building implements Ranged{
-        public float heat, charge = Mathf.random(reload), phaseHeat, smoothEfficiency, useProgress;
+        public float heat, charge = Mathf.random(reload), phaseHeat, smoothEfficiency, useProgress, intensity = 0, realRange;
 
         @Override
         public float range(){
@@ -104,20 +145,25 @@ public class OverdriveProjector extends Block{
             }
 
             if(charge >= reload){
-                float realRange = range + phaseHeat * phaseRangeBoost;
+                realRange = range + phaseHeat * phaseRangeBoost;
 
                 charge = 0f;
                 indexer.eachBlock(this, realRange, other -> other.block.canOverdrive, other -> other.applyBoost(realBoost(), reload + 1f));
+                intensity = indexer.getBlockTiles(this.team(), this.getX(), this.getY(), realRange, other -> other.block.canOverdrive && other.block.category != Category.distribution);
             }
 
             if(efficiency > 0){
                 useProgress += delta();
             }
 
-            if(useProgress >= useTime){
+            if(useProgress * realUseRate() >= 1){
                 consume();
-                useProgress %= useTime;
+                useProgress %= 1 / realUseRate();
             }
+        }
+
+        public float realUseRate(){
+            return (useTime != 0) ? (1 / useTime) + (intensity * useRatePerTile) : -1f;
         }
 
         public float realBoost(){
